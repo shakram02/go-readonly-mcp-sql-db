@@ -1,5 +1,7 @@
 # go-readonly-mcp-mysql
 
+![go-readonly-mcp-mysql](assets/Golang%20Mascott%20-%20Post%20MCP.jpg)
+
 A read-only MySQL MCP (Model Context Protocol) server written in Go. Allows AI assistants like Claude to safely query MySQL databases without risk of data modification.
 
 ## Features
