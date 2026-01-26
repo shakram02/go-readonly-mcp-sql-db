@@ -104,16 +104,50 @@ Using DSN directly:
 
 ### Docker Setup
 
+**Linux (recommended):**
+
 ```json
 {
   "mcpServers": {
     "go-readonly-mcp-mysql": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "ghcr.io/shakram02/go-readonly-mcp-mysql", "user:pass@tcp(host.docker.internal:3306)/mydb"]
+      "args": [
+        "run", "-i", "--rm",
+        "--network=host",
+        "-e", "MCP_MYSQL_HOST=127.0.0.1",
+        "-e", "MCP_MYSQL_PORT=3306",
+        "-e", "MCP_MYSQL_DB=mydb",
+        "-e", "MCP_MYSQL_USER=readonly",
+        "-e", "MCP_MYSQL_PASSWORD=secret",
+        "shakram02/go-readonly-mcp-mysql"
+      ]
     }
   }
 }
 ```
+
+**macOS/Windows:**
+
+```json
+{
+  "mcpServers": {
+    "go-readonly-mcp-mysql": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "MCP_MYSQL_HOST=host.docker.internal",
+        "-e", "MCP_MYSQL_PORT=3306",
+        "-e", "MCP_MYSQL_DB=mydb",
+        "-e", "MCP_MYSQL_USER=readonly",
+        "-e", "MCP_MYSQL_PASSWORD=secret",
+        "shakram02/go-readonly-mcp-mysql"
+      ]
+    }
+  }
+}
+```
+
+> **Note:** On Linux, `--network=host` lets the container access localhost directly. On macOS/Windows, use `host.docker.internal` instead. For remote databases, use the actual hostname or IP.
 
 ## MCP Tools
 
