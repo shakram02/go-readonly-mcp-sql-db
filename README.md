@@ -38,62 +38,68 @@ docker build -t mysql-mcp-server .
 
 ## Usage
 
+### Using Environment Variables
+
+Set the following environment variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `MCP_MYSQL_HOST` | Database host | `localhost` |
+| `MCP_MYSQL_PORT` | Database port | `3306` |
+| `MCP_MYSQL_DB` | Database name | `mydb` |
+| `MCP_MYSQL_USER` | Database user | `readonly` |
+| `MCP_MYSQL_PASSWORD` | Database password | `secret` |
+
+Then run:
+
+```bash
+mysql-mcp-server
+```
+
+### Using DSN Argument
+
 ```bash
 mysql-mcp-server 'user:password@tcp(localhost:3306)/database'
 ```
 
-### DSN Format
-
-The DSN (Data Source Name) follows the [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql#dsn-data-source-name) format:
+The DSN follows the [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql#dsn-data-source-name) format:
 
 ```
 user:password@tcp(host:port)/dbname?param=value
 ```
 
-Examples:
-```bash
-# Basic
-mysql-mcp-server 'root:secret@tcp(localhost:3306)/myapp'
-
-# With parameters
-mysql-mcp-server 'user:pass@tcp(db.example.com:3306)/prod?parseTime=true&timeout=10s'
-
-# Unix socket
-mysql-mcp-server 'user:pass@unix(/var/run/mysqld/mysqld.sock)/mydb'
-```
-
 ## Claude Code Setup
 
-Add to `~/.claude/claude_code_config.json`:
+Using environment variables:
 
 ```json
 {
   "mcpServers": {
-    "mysql": {
+    "go-readonly-mcp-mysql": {
       "command": "/path/to/mysql-mcp-server",
-      "args": ["user:password@tcp(localhost:3306)/database"]
+      "env": {
+        "MCP_MYSQL_HOST": "localhost",
+        "MCP_MYSQL_PORT": "3306",
+        "MCP_MYSQL_DB": "mydb",
+        "MCP_MYSQL_USER": "readonly",
+        "MCP_MYSQL_PASSWORD": "secret"
+      }
     }
   }
 }
 ```
 
-Using environment variables (recommended for credentials):
+Using DSN directly:
 
 ```json
 {
   "mcpServers": {
-    "mysql": {
+    "go-readonly-mcp-mysql": {
       "command": "/path/to/mysql-mcp-server",
-      "args": ["${MYSQL_DSN}"]
+      "args": ["user:password@tcp(localhost:3306)/mydb"]
     }
   }
 }
-```
-
-Then set the environment variable before running Claude Code:
-
-```bash
-export MYSQL_DSN='user:password@tcp(localhost:3306)/database'
 ```
 
 ### Docker Setup
@@ -101,9 +107,9 @@ export MYSQL_DSN='user:password@tcp(localhost:3306)/database'
 ```json
 {
   "mcpServers": {
-    "mysql": {
+    "go-readonly-mcp-mysql": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "mysql-mcp-server", "user:pass@tcp(host.docker.internal:3306)/mydb"]
+      "args": ["run", "-i", "--rm", "ghcr.io/shakram02/go-readonly-mcp-mysql", "user:pass@tcp(host.docker.internal:3306)/mydb"]
     }
   }
 }

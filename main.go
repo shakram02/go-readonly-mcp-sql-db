@@ -10,14 +10,49 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: mysql-mcp-server <dsn>")
-		fmt.Fprintln(os.Stderr, "Example: mysql-mcp-server 'user:password@tcp(localhost:3306)/dbname'")
-		os.Exit(1)
+func getDSN() (string, error) {
+	// If DSN provided as argument, use it directly
+	if len(os.Args) >= 2 {
+		return os.Args[1], nil
 	}
 
-	dsn := os.Args[1]
+	// Build DSN from environment variables
+	host := os.Getenv("MCP_MYSQL_HOST")
+	port := os.Getenv("MCP_MYSQL_PORT")
+	db := os.Getenv("MCP_MYSQL_DB")
+	user := os.Getenv("MCP_MYSQL_USER")
+	password := os.Getenv("MCP_MYSQL_PASSWORD")
+
+	var missing []string
+	if host == "" {
+		missing = append(missing, "MCP_MYSQL_HOST")
+	}
+	if port == "" {
+		missing = append(missing, "MCP_MYSQL_PORT")
+	}
+	if db == "" {
+		missing = append(missing, "MCP_MYSQL_DB")
+	}
+	if user == "" {
+		missing = append(missing, "MCP_MYSQL_USER")
+	}
+	if password == "" {
+		missing = append(missing, "MCP_MYSQL_PASSWORD")
+	}
+
+	if len(missing) > 0 {
+		return "", fmt.Errorf("missing required environment variables: %v\n\nUsage: mysql-mcp-server <dsn>\n   or: set MCP_MYSQL_HOST, MCP_MYSQL_PORT, MCP_MYSQL_DB, MCP_MYSQL_USER, MCP_MYSQL_PASSWORD", missing)
+	}
+
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, password, host, port, db), nil
+}
+
+func main() {
+	dsn, err := getDSN()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// Create context that cancels on interrupt signals
 	ctx, cancel := context.WithCancel(context.Background())

@@ -7,7 +7,6 @@ dist/
 
 # Local scripts and config (contain credentials)
 deploy.sh
-run.sh
 .env
 *.local
 
