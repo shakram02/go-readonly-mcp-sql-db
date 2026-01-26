@@ -1,5 +1,9 @@
 # go-readonly-mcp-mysql
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/shakram02/go-readonly-mcp-mysql)](https://hub.docker.com/r/shakram02/go-readonly-mcp-mysql)
+[![Docker Image Size](https://img.shields.io/docker/image-size/shakram02/go-readonly-mcp-mysql/latest)](https://hub.docker.com/r/shakram02/go-readonly-mcp-mysql)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 ![go-readonly-mcp-mysql](assets/Golang%20Mascott%20-%20Post%20MCP.jpg)
 
 A read-only MySQL MCP (Model Context Protocol) server written in Go. Allows AI assistants like Claude to safely query MySQL databases without risk of data modification.
