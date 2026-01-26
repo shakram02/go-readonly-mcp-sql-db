@@ -1,0 +1,201 @@
+# go-readonly-mcp-mysql
+
+A read-only MySQL MCP (Model Context Protocol) server written in Go. Allows AI assistants like Claude to safely query MySQL databases without risk of data modification.
+
+## Features
+
+- **Read-only by design** - Only SELECT, SHOW, DESCRIBE, and EXPLAIN queries allowed
+- **Security hardened** - Blocks dangerous functions (SLEEP, BENCHMARK, LOAD_FILE, etc.)
+- **Single binary** - No runtime dependencies, easy to deploy
+- **Cross-platform** - Builds for Linux, macOS, and Windows
+- **Low resource usage** - ~5MB binary, minimal memory footprint
+
+## Installation
+
+### Download Binary
+
+Download the latest release for your platform from [Releases](https://github.com/shakram02/go-readonly-mcp-mysql/releases).
+
+### Build from Source
+
+```bash
+go install github.com/shakram02/go-readonly-mcp-mysql@latest
+```
+
+Or clone and build:
+
+```bash
+git clone https://github.com/shakram02/go-readonly-mcp-mysql.git
+cd go-readonly-mcp-mysql
+CGO_ENABLED=0 go build -o mysql-mcp-server .
+```
+
+### Docker
+
+```bash
+docker build -t mysql-mcp-server .
+```
+
+## Usage
+
+```bash
+mysql-mcp-server 'user:password@tcp(localhost:3306)/database'
+```
+
+### DSN Format
+
+The DSN (Data Source Name) follows the [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql#dsn-data-source-name) format:
+
+```
+user:password@tcp(host:port)/dbname?param=value
+```
+
+Examples:
+```bash
+# Basic
+mysql-mcp-server 'root:secret@tcp(localhost:3306)/myapp'
+
+# With parameters
+mysql-mcp-server 'user:pass@tcp(db.example.com:3306)/prod?parseTime=true&timeout=10s'
+
+# Unix socket
+mysql-mcp-server 'user:pass@unix(/var/run/mysqld/mysqld.sock)/mydb'
+```
+
+## Claude Code Setup
+
+Add to `~/.claude/claude_code_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "mysql": {
+      "command": "/path/to/mysql-mcp-server",
+      "args": ["user:password@tcp(localhost:3306)/database"]
+    }
+  }
+}
+```
+
+Using environment variables (recommended for credentials):
+
+```json
+{
+  "mcpServers": {
+    "mysql": {
+      "command": "/path/to/mysql-mcp-server",
+      "args": ["${MYSQL_DSN}"]
+    }
+  }
+}
+```
+
+Then set the environment variable before running Claude Code:
+
+```bash
+export MYSQL_DSN='user:password@tcp(localhost:3306)/database'
+```
+
+### Docker Setup
+
+```json
+{
+  "mcpServers": {
+    "mysql": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "mysql-mcp-server", "user:pass@tcp(host.docker.internal:3306)/mydb"]
+    }
+  }
+}
+```
+
+## MCP Tools
+
+### query
+
+Execute a read-only SQL query.
+
+**Parameters:**
+- `sql` (string, required): The SQL query to execute
+
+**Allowed statements:**
+- `SELECT`
+- `SHOW`
+- `DESCRIBE` / `DESC`
+- `EXPLAIN`
+
+**Example:**
+```json
+{
+  "name": "query",
+  "arguments": {
+    "sql": "SELECT * FROM users LIMIT 10"
+  }
+}
+```
+
+## MCP Resources
+
+The server exposes table schemas as resources:
+
+- **URI format:** `mysql://database/table/schema`
+- **Content:** JSON array of column definitions
+
+## Security
+
+### Query Validation
+
+All queries are validated before execution:
+
+- Must start with allowed keywords (SELECT, SHOW, DESCRIBE, EXPLAIN)
+- Blocked keywords: INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, TRUNCATE, etc.
+- Blocked patterns: INTO OUTFILE, INTO DUMPFILE, LOAD_FILE
+- Blocked functions: SLEEP, BENCHMARK, GET_LOCK (DoS prevention)
+- Multi-statement queries are rejected
+
+### Connection Security
+
+- Session is set to `TRANSACTION READ ONLY` mode
+- Query timeout: 30 seconds
+- Result limit: 10,000 rows
+
+### Recommendations
+
+- Use a dedicated read-only MySQL user
+- Restrict the user to specific databases/tables
+- Use TLS for remote connections
+
+Example MySQL user setup:
+```sql
+CREATE USER 'mcp_readonly'@'%' IDENTIFIED BY 'secure_password';
+GRANT SELECT ON mydb.* TO 'mcp_readonly'@'%';
+FLUSH PRIVILEGES;
+```
+
+## Building
+
+### All Platforms
+
+```bash
+# Linux
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o dist/mysql-mcp-server-linux-amd64 .
+
+# macOS (Intel)
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o dist/mysql-mcp-server-darwin-amd64 .
+
+# macOS (Apple Silicon)
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o dist/mysql-mcp-server-darwin-arm64 .
+
+# Windows
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o dist/mysql-mcp-server-windows-amd64.exe .
+```
+
+### Running Tests
+
+```bash
+go test -v ./...
+```
+
+## License
+
+MIT

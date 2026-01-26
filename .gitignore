@@ -1,0 +1,26 @@
+# Binary
+mysql-mcp-server
+mysql-mcp-server.exe
+
+# Build output
+dist/
+
+# Local scripts and config (contain credentials)
+deploy.sh
+run.sh
+.env
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage.out
+coverage.html
