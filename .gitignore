@@ -1,8 +1,6 @@
 # Binary
-mysql-mcp-server
-mysql-mcp-server.exe
-readonly-mcp-server
-readonly-mcp-server.exe
+go-readonly-mcp-sql
+go-readonly-mcp-sql.exe
 
 # Build output
 dist/

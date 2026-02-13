@@ -12,9 +12,10 @@ import (
 	"time"
 )
 
-// Server configuration constants
+// Server configuration defaults (QueryTimeout is overridable via MCP_QUERY_TIMEOUT)
+var QueryTimeout = 30 * time.Second
+
 const (
-	QueryTimeout       = 30 * time.Second
 	ConnectionTimeout  = 10 * time.Second
 	MaxConnectionsIdle = 5
 	MaxConnectionsOpen = 10

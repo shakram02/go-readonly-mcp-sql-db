@@ -6,10 +6,8 @@ import (
 	"strings"
 )
 
-// Query validation constants
-const (
-	MaxResultRows = 10000
-)
+// MaxResultRows is overridable via MCP_MAX_ROWS env var
+var MaxResultRows = 10000
 
 // commonDangerousKeywords are DML/DDL keywords blocked by all databases.
 var commonDangerousKeywords = []struct {

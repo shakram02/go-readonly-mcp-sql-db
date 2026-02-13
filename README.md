@@ -62,6 +62,15 @@ Set `MCP_DB_DRIVER` to choose your database. If not set, defaults to `mysql`.
 export MCP_DB_DRIVER=mysql    # or postgres, sqlite
 ```
 
+### Query Limits
+
+These optional env vars override the defaults for all database drivers:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_QUERY_TIMEOUT` | Query timeout in seconds | `30` |
+| `MCP_MAX_ROWS` | Maximum rows returned per query | `10000` |
+
 ### MySQL
 
 #### Environment Variables
@@ -327,8 +336,8 @@ All queries are validated before execution. A shared validation layer blocks com
 | PostgreSQL | `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`       |
 | SQLite     | DSN `?mode=ro` + `PRAGMA query_only = ON` (defense-in-depth) |
 
-- Query timeout: 30 seconds
-- Result limit: 10,000 rows
+- Query timeout: 30 seconds (configurable via `MCP_QUERY_TIMEOUT`)
+- Result limit: 10,000 rows (configurable via `MCP_MAX_ROWS`)
 
 ### Recommendations
 

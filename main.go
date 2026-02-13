@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -41,7 +43,29 @@ func getDSN(adapter DBAdapter) (string, error) {
 	return adapter.BuildDSN()
 }
 
+func loadConfig() {
+	if v := os.Getenv("MCP_QUERY_TIMEOUT"); v != "" {
+		secs, err := strconv.Atoi(v)
+		if err != nil || secs <= 0 {
+			fmt.Fprintf(os.Stderr, "Invalid MCP_QUERY_TIMEOUT=%q, using default %v\n", v, QueryTimeout)
+		} else {
+			QueryTimeout = time.Duration(secs) * time.Second
+		}
+	}
+
+	if v := os.Getenv("MCP_MAX_ROWS"); v != "" {
+		rows, err := strconv.Atoi(v)
+		if err != nil || rows <= 0 {
+			fmt.Fprintf(os.Stderr, "Invalid MCP_MAX_ROWS=%q, using default %d\n", v, MaxResultRows)
+		} else {
+			MaxResultRows = rows
+		}
+	}
+}
+
 func main() {
+	loadConfig()
+
 	adapter, err := selectAdapter()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
