@@ -1,7 +1,7 @@
 # go-readonly-mcp
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/shakram02/go-readonly-mcp-mysql)](https://hub.docker.com/r/shakram02/go-readonly-mcp-mysql)
-[![Docker Image Size](https://img.shields.io/docker/image-size/shakram02/go-readonly-mcp-mysql/latest)](https://hub.docker.com/r/shakram02/go-readonly-mcp-mysql)
+[![Docker Pulls](https://img.shields.io/docker/pulls/shakram02/readonly-sql-db-mcp)](https://hub.docker.com/r/shakram02/readonly-sql-db-mcp)
+[![Docker Image Size](https://img.shields.io/docker/image-size/shakram02/readonly-sql-db-mcp/latest)](https://hub.docker.com/r/shakram02/readonly-sql-db-mcp)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ![go-readonly-mcp](assets/Golang%20Mascott%20-%20Post%20MCP.png)
@@ -30,18 +30,18 @@ A read-only database MCP (Model Context Protocol) server written in Go. Allows A
 
 ### Download Binary
 
-Download the latest release for your platform from [Releases](https://github.com/shakram02/go-readonly-mcp-mysql/releases).
+Download the latest release for your platform from [Releases](https://github.com/shakram02/readonly-sql-db-mcp/releases).
 
 ### Build from Source
 
 ```bash
-go install github.com/shakram02/go-readonly-mcp-mysql@latest
+go install github.com/shakram02/readonly-sql-db-mcp@latest
 ```
 
 Or clone and build:
 
 ```bash
-git clone https://github.com/shakram02/go-readonly-mcp-mysql.git
+git clone https://github.com/shakram02/readonly-sql-db-mcp.git
 cd go-readonly-mcp-mysql
 CGO_ENABLED=0 go build -o readonly-mcp-server .
 ```
@@ -215,7 +215,7 @@ MCP_DB_DRIVER=sqlite readonly-mcp-server '/data/mydb.db'
         "-e", "MCP_MYSQL_DB=mydb",
         "-e", "MCP_MYSQL_USER=readonly",
         "-e", "MCP_MYSQL_PASSWORD=secret",
-        "shakram02/go-readonly-mcp-mysql"
+        "shakram02/readonly-sql-db-mcp"
       ]
     }
   }
@@ -236,7 +236,7 @@ MCP_DB_DRIVER=sqlite readonly-mcp-server '/data/mydb.db'
         "-e", "MCP_MYSQL_DB=mydb",
         "-e", "MCP_MYSQL_USER=readonly",
         "-e", "MCP_MYSQL_PASSWORD=secret",
-        "shakram02/go-readonly-mcp-mysql"
+        "shakram02/readonly-sql-db-mcp"
       ]
     }
   }
@@ -263,7 +263,7 @@ Mount the database file and set the driver:
         "-v", "/path/to/mydb.db:/data/mydb.db:ro",
         "-e", "MCP_DB_DRIVER=sqlite",
         "-e", "MCP_SQLITE_PATH=/data/mydb.db",
-        "shakram02/go-readonly-mcp-mysql"
+        "shakram02/readonly-sql-db-mcp"
       ]
     }
   }
