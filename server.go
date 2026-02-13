@@ -20,18 +20,19 @@ const (
 	MaxConnectionsOpen = 10
 )
 
-// MySQLMCPServer handles MCP protocol over stdio
-type MySQLMCPServer struct {
+// MCPServer handles MCP protocol over stdio
+type MCPServer struct {
 	db           *sql.DB
+	adapter      DBAdapter
 	databaseName string
 	initialized  bool
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
 
-// NewMySQLMCPServer creates a new MCP server connected to MySQL
-func NewMySQLMCPServer(ctx context.Context, dsn string) (*MySQLMCPServer, error) {
-	db, err := sql.Open("mysql", dsn)
+// NewMCPServer creates a new MCP server connected to the database via the adapter
+func NewMCPServer(ctx context.Context, adapter DBAdapter, dsn string) (*MCPServer, error) {
+	db, err := sql.Open(adapter.DriverName(), dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -50,40 +51,27 @@ func NewMySQLMCPServer(ctx context.Context, dsn string) (*MySQLMCPServer, error)
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Extract database name from DSN
-	dbName := extractDatabaseName(dsn)
+	// Extract database name using adapter-specific parsing
+	dbName := adapter.DatabaseName(dsn)
 
-	// Set connection to read-only mode
-	_, err = db.ExecContext(ctx, "SET SESSION TRANSACTION READ ONLY")
-	if err != nil {
-		logError("Warning: Could not set read-only transaction mode: %v", err)
+	// Enforce read-only mode using adapter-specific mechanism
+	if err := adapter.EnforceReadOnly(ctx, db); err != nil {
+		logError("Warning: Could not set read-only mode: %v", err)
 	}
 
 	serverCtx, serverCancel := context.WithCancel(ctx)
 
-	return &MySQLMCPServer{
+	return &MCPServer{
 		db:           db,
+		adapter:      adapter,
 		databaseName: dbName,
 		ctx:          serverCtx,
 		cancel:       serverCancel,
 	}, nil
 }
 
-func extractDatabaseName(dsn string) string {
-	// DSN format: user:password@tcp(host:port)/dbname?params
-	parts := strings.Split(dsn, "/")
-	if len(parts) < 2 {
-		return ""
-	}
-	dbPart := parts[len(parts)-1]
-	if idx := strings.Index(dbPart, "?"); idx != -1 {
-		dbPart = dbPart[:idx]
-	}
-	return dbPart
-}
-
 // Run starts the MCP server, reading from stdin and writing to stdout
-func (s *MySQLMCPServer) Run() error {
+func (s *MCPServer) Run() error {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -118,7 +106,7 @@ func (s *MySQLMCPServer) Run() error {
 	}
 }
 
-func (s *MySQLMCPServer) handleMessage(data []byte) *JSONRPCResponse {
+func (s *MCPServer) handleMessage(data []byte) *JSONRPCResponse {
 	var req JSONRPCRequest
 	if err := json.Unmarshal(data, &req); err != nil {
 		return &JSONRPCResponse{
@@ -146,7 +134,7 @@ func (s *MySQLMCPServer) handleMessage(data []byte) *JSONRPCResponse {
 	return s.handleRequest(&req)
 }
 
-func (s *MySQLMCPServer) handleRequest(req *JSONRPCRequest) *JSONRPCResponse {
+func (s *MCPServer) handleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 	var result any
 	var err *Error
 
@@ -182,14 +170,14 @@ func (s *MySQLMCPServer) handleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 }
 
 // Shutdown gracefully shuts down the server
-func (s *MySQLMCPServer) Shutdown() {
+func (s *MCPServer) Shutdown() {
 	if s.cancel != nil {
 		s.cancel()
 	}
 }
 
 // Close releases all resources
-func (s *MySQLMCPServer) Close() error {
+func (s *MCPServer) Close() error {
 	s.Shutdown()
 	if s.db != nil {
 		return s.db.Close()
@@ -198,5 +186,5 @@ func (s *MySQLMCPServer) Close() error {
 }
 
 func logError(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "[mysql-mcp] "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "[mcp-server] "+format+"\n", args...)
 }

@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestValidateReadOnlyQuery_AllowedQueries(t *testing.T) {
+func TestMySQLValidateQuery_AllowedQueries(t *testing.T) {
+	adapter := &MySQLAdapter{}
 	allowedQueries := []string{
 		"SELECT * FROM users",
 		"SELECT id, name FROM users WHERE id = 1",
@@ -25,7 +26,7 @@ func TestValidateReadOnlyQuery_AllowedQueries(t *testing.T) {
 
 	for _, query := range allowedQueries {
 		t.Run(query, func(t *testing.T) {
-			err := validateReadOnlyQuery(query)
+			err := adapter.ValidateQuery(query)
 			if err != nil {
 				t.Errorf("Expected query to be allowed, but got error: %v", err)
 			}
@@ -33,7 +34,8 @@ func TestValidateReadOnlyQuery_AllowedQueries(t *testing.T) {
 	}
 }
 
-func TestValidateReadOnlyQuery_BlockedQueries(t *testing.T) {
+func TestMySQLValidateQuery_BlockedQueries(t *testing.T) {
+	adapter := &MySQLAdapter{}
 	blockedQueries := []struct {
 		query       string
 		shouldBlock string
@@ -66,7 +68,7 @@ func TestValidateReadOnlyQuery_BlockedQueries(t *testing.T) {
 
 	for _, tc := range blockedQueries {
 		t.Run(tc.query, func(t *testing.T) {
-			err := validateReadOnlyQuery(tc.query)
+			err := adapter.ValidateQuery(tc.query)
 			if err == nil {
 				t.Errorf("Expected query to be blocked for %s, but it was allowed", tc.shouldBlock)
 			}
@@ -74,30 +76,32 @@ func TestValidateReadOnlyQuery_BlockedQueries(t *testing.T) {
 	}
 }
 
-func TestValidateReadOnlyQuery_EmptyQuery(t *testing.T) {
-	err := validateReadOnlyQuery("")
+func TestMySQLValidateQuery_EmptyQuery(t *testing.T) {
+	adapter := &MySQLAdapter{}
+
+	err := adapter.ValidateQuery("")
 	if err == nil {
 		t.Error("Expected empty query to be rejected")
 	}
 
-	err = validateReadOnlyQuery("   ")
+	err = adapter.ValidateQuery("   ")
 	if err == nil {
 		t.Error("Expected whitespace-only query to be rejected")
 	}
 }
 
-func TestValidateReadOnlyQuery_CommentInjection(t *testing.T) {
-	blockedQueries := []string{
+func TestMySQLValidateQuery_CommentInjection(t *testing.T) {
+	adapter := &MySQLAdapter{}
+	queries := []string{
 		"SELECT 1 -- ; DROP TABLE users",
 		"SELECT 1 /* ; DROP TABLE users */",
 		"SELECT 1 # ; DROP TABLE users",
 	}
 
-	for _, query := range blockedQueries {
+	for _, query := range queries {
 		t.Run(query, func(t *testing.T) {
-			err := validateReadOnlyQuery(query)
+			err := adapter.ValidateQuery(query)
 			// These should be allowed as the dangerous part is in a comment
-			// But multi-statement check should not false-positive on comments
 			if err != nil && strings.Contains(err.Error(), "multiple statements") {
 				t.Errorf("False positive on comment: %v", err)
 			}
@@ -105,7 +109,8 @@ func TestValidateReadOnlyQuery_CommentInjection(t *testing.T) {
 	}
 }
 
-func TestRemoveStringsAndComments(t *testing.T) {
+func TestMySQLRemoveStringsAndComments(t *testing.T) {
+	adapter := &MySQLAdapter{}
 	tests := []struct {
 		input    string
 		expected string
@@ -126,11 +131,15 @@ func TestRemoveStringsAndComments(t *testing.T) {
 			input:    "SELECT * FROM `table_name`",
 			expected: "SELECT * FROM `table_name`",
 		},
+		{
+			input:    "SELECT * FROM users # comment",
+			expected: "SELECT * FROM users  ",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
-			result := removeStringsAndComments(tc.input)
+			result := adapter.RemoveStringsAndComments(tc.input)
 			if result != tc.expected {
 				t.Errorf("Expected %q, got %q", tc.expected, result)
 			}

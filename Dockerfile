@@ -11,15 +11,15 @@ RUN go mod download
 COPY *.go ./
 
 # Build static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o mysql-mcp-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o readonly-mcp-server .
 
 # Final stage - minimal image
 FROM scratch
 
 # Copy the binary
-COPY --from=builder /app/mysql-mcp-server /mysql-mcp-server
+COPY --from=builder /app/readonly-mcp-server /readonly-mcp-server
 
-# Copy CA certificates for TLS connections to MySQL
+# Copy CA certificates for TLS connections
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-ENTRYPOINT ["/mysql-mcp-server"]
+ENTRYPOINT ["/readonly-mcp-server"]

@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 )
 
-func (s *MySQLMCPServer) handleInitialize(params json.RawMessage) (*InitializeResult, *Error) {
+func (s *MCPServer) handleInitialize(params json.RawMessage) (*InitializeResult, *Error) {
 	var initParams InitializeParams
 	if params != nil {
 		if err := json.Unmarshal(params, &initParams); err != nil {
@@ -29,13 +28,13 @@ func (s *MySQLMCPServer) handleInitialize(params json.RawMessage) (*InitializeRe
 			Resources: &ResourcesCapability{},
 		},
 		ServerInfo: ServerInfo{
-			Name:    ServerName,
+			Name:    s.adapter.ServerName(),
 			Version: ServerVersion,
 		},
 	}, nil
 }
 
-func (s *MySQLMCPServer) handleListTools() (*ListToolsResult, *Error) {
+func (s *MCPServer) handleListTools() (*ListToolsResult, *Error) {
 	return &ListToolsResult{
 		Tools: []Tool{
 			{
@@ -56,7 +55,7 @@ func (s *MySQLMCPServer) handleListTools() (*ListToolsResult, *Error) {
 	}, nil
 }
 
-func (s *MySQLMCPServer) handleCallTool(params json.RawMessage) (*CallToolResult, *Error) {
+func (s *MCPServer) handleCallTool(params json.RawMessage) (*CallToolResult, *Error) {
 	var callParams CallToolParams
 	if err := json.Unmarshal(params, &callParams); err != nil {
 		return nil, &Error{
@@ -77,7 +76,7 @@ func (s *MySQLMCPServer) handleCallTool(params json.RawMessage) (*CallToolResult
 	}
 }
 
-func (s *MySQLMCPServer) executeQuery(args map[string]any) (*CallToolResult, *Error) {
+func (s *MCPServer) executeQuery(args map[string]any) (*CallToolResult, *Error) {
 	sqlQuery, ok := args["sql"].(string)
 	if !ok || sqlQuery == "" {
 		return nil, &Error{
@@ -86,8 +85,8 @@ func (s *MySQLMCPServer) executeQuery(args map[string]any) (*CallToolResult, *Er
 		}
 	}
 
-	// Validate query is read-only
-	if err := validateReadOnlyQuery(sqlQuery); err != nil {
+	// Validate query is read-only using adapter-specific rules
+	if err := s.adapter.ValidateQuery(sqlQuery); err != nil {
 		return &CallToolResult{
 			Content: []Content{{Type: "text", Text: fmt.Sprintf("Query rejected: %v", err)}},
 			IsError: true,
@@ -175,7 +174,7 @@ func (s *MySQLMCPServer) executeQuery(args map[string]any) (*CallToolResult, *Er
 	}, nil
 }
 
-func (s *MySQLMCPServer) handleListResources() (*ListResourcesResult, *Error) {
+func (s *MCPServer) handleListResources() (*ListResourcesResult, *Error) {
 	if s.databaseName == "" {
 		return &ListResourcesResult{Resources: []Resource{}}, nil
 	}
@@ -183,11 +182,8 @@ func (s *MySQLMCPServer) handleListResources() (*ListResourcesResult, *Error) {
 	ctx, cancel := context.WithTimeout(s.ctx, QueryTimeout)
 	defer cancel()
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT table_name
-		FROM information_schema.tables
-		WHERE table_schema = ?
-	`, s.databaseName)
+	query, args := s.adapter.ListTablesQuery(s.databaseName)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, &Error{
 			Code:    InternalError,
@@ -196,6 +192,7 @@ func (s *MySQLMCPServer) handleListResources() (*ListResourcesResult, *Error) {
 	}
 	defer rows.Close()
 
+	scheme := s.adapter.URIScheme()
 	var resources []Resource
 	for rows.Next() {
 		var tableName string
@@ -204,7 +201,7 @@ func (s *MySQLMCPServer) handleListResources() (*ListResourcesResult, *Error) {
 			continue
 		}
 		resources = append(resources, Resource{
-			URI:      fmt.Sprintf("mysql://%s/%s/schema", s.databaseName, tableName),
+			URI:      fmt.Sprintf("%s://%s/%s/schema", scheme, s.databaseName, tableName),
 			Name:     fmt.Sprintf("Schema for table '%s'", tableName),
 			MimeType: "application/json",
 		})
@@ -220,7 +217,7 @@ func (s *MySQLMCPServer) handleListResources() (*ListResourcesResult, *Error) {
 	return &ListResourcesResult{Resources: resources}, nil
 }
 
-func (s *MySQLMCPServer) handleReadResource(params json.RawMessage) (*ReadResourceResult, *Error) {
+func (s *MCPServer) handleReadResource(params json.RawMessage) (*ReadResourceResult, *Error) {
 	var readParams ReadResourceParams
 	if err := json.Unmarshal(params, &readParams); err != nil {
 		return nil, &Error{
@@ -230,20 +227,22 @@ func (s *MySQLMCPServer) handleReadResource(params json.RawMessage) (*ReadResour
 		}
 	}
 
-	// Parse URI: mysql://dbname/tablename/schema
+	// Parse URI: scheme://dbname/tablename/schema
 	uri := readParams.URI
-	if !strings.HasPrefix(uri, "mysql://") {
+	prefix := s.adapter.URIScheme() + "://"
+
+	if !strings.HasPrefix(uri, prefix) {
 		return nil, &Error{
 			Code:    InvalidParams,
-			Message: "Invalid resource URI: must start with mysql://",
+			Message: fmt.Sprintf("Invalid resource URI: must start with %s", prefix),
 		}
 	}
 
-	parts := strings.Split(strings.TrimPrefix(uri, "mysql://"), "/")
+	parts := strings.Split(strings.TrimPrefix(uri, prefix), "/")
 	if len(parts) < 3 || parts[2] != "schema" {
 		return nil, &Error{
 			Code:    InvalidParams,
-			Message: "Invalid resource URI format: expected mysql://dbname/tablename/schema",
+			Message: fmt.Sprintf("Invalid resource URI format: expected %sdbname/tablename/schema", prefix),
 		}
 	}
 
@@ -253,13 +252,8 @@ func (s *MySQLMCPServer) handleReadResource(params json.RawMessage) (*ReadResour
 	ctx, cancel := context.WithTimeout(s.ctx, QueryTimeout)
 	defer cancel()
 
-	// Get column information
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT column_name, data_type, is_nullable, column_key, column_default, extra
-		FROM information_schema.columns
-		WHERE table_schema = ? AND table_name = ?
-		ORDER BY ordinal_position
-	`, dbName, tableName)
+	query, queryArgs := s.adapter.ReadSchemaQuery(dbName, tableName)
+	rows, err := s.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, &Error{
 			Code:    InternalError,
@@ -270,25 +264,10 @@ func (s *MySQLMCPServer) handleReadResource(params json.RawMessage) (*ReadResour
 
 	var columns []map[string]any
 	for rows.Next() {
-		var colName, dataType, isNullable, colKey string
-		var colDefault, extra sql.NullString
-
-		if err := rows.Scan(&colName, &dataType, &isNullable, &colKey, &colDefault, &extra); err != nil {
+		col, err := s.adapter.ScanSchemaRow(rows)
+		if err != nil {
 			logError("Failed to scan column info: %v", err)
 			continue
-		}
-
-		col := map[string]any{
-			"column_name": colName,
-			"data_type":   dataType,
-			"is_nullable": isNullable,
-			"column_key":  colKey,
-		}
-		if colDefault.Valid {
-			col["column_default"] = colDefault.String
-		}
-		if extra.Valid && extra.String != "" {
-			col["extra"] = extra.String
 		}
 		columns = append(columns, col)
 	}

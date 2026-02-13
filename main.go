@@ -5,50 +5,50 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "modernc.org/sqlite"
 )
 
-func getDSN() (string, error) {
+func selectAdapter() (DBAdapter, error) {
+	driver := strings.ToLower(os.Getenv("MCP_DB_DRIVER"))
+	if driver == "" {
+		driver = "mysql" // backward compatibility
+	}
+
+	switch driver {
+	case "mysql":
+		return &MySQLAdapter{}, nil
+	case "postgres", "postgresql":
+		return &PostgresAdapter{}, nil
+	case "sqlite", "sqlite3":
+		return &SQLiteAdapter{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s (supported: mysql, postgres, sqlite)", driver)
+	}
+}
+
+func getDSN(adapter DBAdapter) (string, error) {
 	// If DSN provided as argument, use it directly
 	if len(os.Args) >= 2 {
 		return os.Args[1], nil
 	}
 
-	// Build DSN from environment variables
-	host := os.Getenv("MCP_MYSQL_HOST")
-	port := os.Getenv("MCP_MYSQL_PORT")
-	db := os.Getenv("MCP_MYSQL_DB")
-	user := os.Getenv("MCP_MYSQL_USER")
-	password := os.Getenv("MCP_MYSQL_PASSWORD")
-
-	var missing []string
-	if host == "" {
-		missing = append(missing, "MCP_MYSQL_HOST")
-	}
-	if port == "" {
-		missing = append(missing, "MCP_MYSQL_PORT")
-	}
-	if db == "" {
-		missing = append(missing, "MCP_MYSQL_DB")
-	}
-	if user == "" {
-		missing = append(missing, "MCP_MYSQL_USER")
-	}
-	if password == "" {
-		missing = append(missing, "MCP_MYSQL_PASSWORD")
-	}
-
-	if len(missing) > 0 {
-		return "", fmt.Errorf("missing required environment variables: %v\n\nUsage: mysql-mcp-server <dsn>\n   or: set MCP_MYSQL_HOST, MCP_MYSQL_PORT, MCP_MYSQL_DB, MCP_MYSQL_USER, MCP_MYSQL_PASSWORD", missing)
-	}
-
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, password, host, port, db), nil
+	// Build DSN from environment variables using the adapter
+	return adapter.BuildDSN()
 }
 
 func main() {
-	dsn, err := getDSN()
+	adapter, err := selectAdapter()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	dsn, err := getDSN(adapter)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -68,14 +68,14 @@ func main() {
 		cancel()
 	}()
 
-	server, err := NewMySQLMCPServer(ctx, dsn)
+	server, err := NewMCPServer(ctx, adapter, dsn)
 	if err != nil {
 		logError("Failed to create server: %v", err)
 		os.Exit(1)
 	}
 	defer server.Close()
 
-	logError("MySQL MCP Server started (read-only mode)")
+	logError("%s started (read-only mode)", adapter.ServerName())
 
 	if err := server.Run(); err != nil {
 		if err == context.Canceled {
