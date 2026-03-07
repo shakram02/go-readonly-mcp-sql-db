@@ -18,7 +18,7 @@ import (
 func selectAdapter() (DBAdapter, error) {
 	driver := strings.ToLower(os.Getenv("MCP_DB_DRIVER"))
 	if driver == "" {
-		driver = "mysql" // backward compatibility
+		return nil, fmt.Errorf("MCP_DB_DRIVER environment variable is required (supported: mysql, postgres, sqlite)")
 	}
 
 	switch driver {
